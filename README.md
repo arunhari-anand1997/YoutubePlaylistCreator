@@ -1,40 +1,52 @@
 # YoutubePlaylistCreator
 
-Auto-curate a **daily YouTube playlist** on your own account. Every morning it
-pulls fresh videos from the channels you follow *and* from topic searches, ranks
-them, and refreshes a single rolling playlist with the best of:
+Auto-curate a **daily YouTube playlist** on your own account — built to surface
+**gaining-traction depth content** and steer clear of provocative clickbait. It
+discovers videos by topic search (**not** your subscription feed), ranks them by
+how fast they're picking up steam, and keeps an *accreting* playlist that ages
+out instead of wiping. Categories:
 
-- 🏟️ Sports highlights
-- 🗞️ High-value news & analysis
+- 📰 Current affairs & analysis
+- 🏟️ Sports storylines & tactics (breakdowns, not raw highlights)
 - 🎙️ Long-form interviews
 - 🎬 Mini-documentaries
-- ✍️ Video essays
+- ✍️ Video essays & explainers
 
-Categories, counts, and ranking weights are all driven by [`config.yaml`](config.yaml)
-— no code changes needed to retune it.
+Categories, ranking weights, and the age-out window are all driven by
+[`config.yaml`](config.yaml) — no code changes needed to retune it.
 
 ## How it works
 
 ```
-subscriptions ─┐
-               ├─► gather candidates ─► classify into categories ─► score & rank
-topic searches ─┘                                                        │
-                                                                         ▼
-                            rolling "Daily Mix" playlist  ◄── clear & refill
+topic searches ─► hydrate & filter ─► classify into categories ─► score & rank
+                                                                        │
+                                                                        ▼
+            rolling "Daily Mix"  ◄──  age out entries > N days, then top up
 ```
 
-1. **Discovery (hybrid).** Recent uploads from up to N subscribed channels, plus
-   per-category keyword searches to fill any thin category and surface channels
-   you don't follow yet. Everything is filtered to a recent time window
-   (`lookback_hours`).
+1. **Discovery (search-only).** Per-category topic searches over a recent window
+   (`lookback_hours`). No subscriptions — the goal is the best of the whole
+   platform, not an echo of who you follow.
 2. **Classification.** Each video is assigned to its single best-fitting category
    using YouTube's category id and your keyword lists.
-3. **Scoring.** Videos compete within a category on a weighted blend of: view
-   count, recency, engagement (likes/views), a boost for channels you follow, and
-   keyword relevance. The top `target` per category are kept.
-4. **Publish.** The picks are interleaved (so topics mix) and written to one
-   rolling playlist that's cleared and refilled each day. Switch to a new dated
-   playlist per day with `playlist.mode: dated`.
+3. **Scoring.** Videos compete within a category on a weighted blend of:
+   **view-velocity** (views-per-hour — the "gaining traction" signal),
+   engagement (likes/views), recency, raw views, and keyword relevance — *minus*
+   a **clickbait penalty** that down-ranks ALL-CAPS / "SHOCKING!!" / baity
+   titles. The top `target` per category are kept.
+4. **Reconcile (age-out + top-up).** The picks are interleaved (so topics mix)
+   into one rolling playlist. Each run **removes only entries that have been in
+   the playlist longer than `age_out_days`** and adds fresh picks that aren't
+   already there — so your unwatched backlog survives day to day. Switch to a new
+   dated playlist per day with `playlist.mode: dated`.
+
+> **A note on "watched" detection.** The YouTube Data API does **not** expose
+> watch history or playback progress, so the tool can't know which videos you've
+> actually watched. Age-out (drop anything older than `age_out_days`) is the
+> automatable proxy. If you'd rather prune by a deliberate signal, you can remove
+> watched videos yourself in the YouTube app — the dedup logic won't re-add a
+> video that's still inside the playlist, and aged-out videos fall outside the
+> search window so they don't come back.
 
 ## Setup
 
@@ -91,20 +103,24 @@ See [`config.yaml`](config.yaml) for the full, commented schema. Highlights:
 
 | Section | Key | What it does |
 |---|---|---|
-| `playlist` | `mode` | `rolling` (one playlist, cleared daily) or `dated` (new per day) |
+| `playlist` | `mode` | `rolling` (accretive, age-out + top-up) or `dated` (new per day) |
+| `playlist` | `age_out_days` | remove entries that have been in the playlist longer than this |
+| `playlist` | `max_size` | safety cap on total playlist length |
 | `playlist` | `privacy` | `private` / `unlisted` / `public` |
-| `discovery` | `lookback_hours` | only consider videos newer than this |
-| `discovery` | `max_subscription_channels` | quota guard for the subscriptions scan |
-| `scoring` | `weights` | relative influence of each ranking signal |
+| `discovery` | `lookback_hours` | only consider videos published within this window |
+| `discovery` | `search_results_per_query` | results requested per topic search |
+| `scoring` | `weights.velocity` | weight on views-per-hour ("gaining traction") |
+| `scoring` | `weights.clickbait` | how hard to penalise baity / provocative titles |
+| `scoring` | `weights` | relative influence of every ranking signal |
 | `categories[]` | `target` | how many videos to keep per category |
 | `categories[]` | `queries` / `keywords` | search terms and classification keywords |
 
 ### A note on API quota
 
 The YouTube Data API gives 10,000 quota units/day by default. `search.list` costs
-100 units each (so ~10 searches with the sample config), while the subscription
-scan and playlist writes cost ~1 unit each. The defaults stay comfortably under
-the cap; raising `search_results_per_query` doesn't change cost, but adding more
+100 units each (so ~13 searches with the sample config), while video hydration and
+playlist add/remove operations cost ~1 unit each. The defaults stay well under the
+cap; raising `search_results_per_query` doesn't change cost, but adding more
 `queries` does (×100 each).
 
 ## Development

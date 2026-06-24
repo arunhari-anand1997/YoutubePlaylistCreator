@@ -1,9 +1,8 @@
 """Thin wrapper over the YouTube Data API v3.
 
 Keeps all googleapiclient quirks (pagination, batching, field selection) in one
-place so the rest of the codebase deals in plain Python objects. Methods are
-written to be quota-conscious: ``videos.list`` calls are batched 50-at-a-time,
-and searches request only the fields we use.
+place so the rest of the codebase deals in plain Python objects. Discovery is
+search-only — there are no subscription calls.
 """
 
 from __future__ import annotations
@@ -13,66 +12,18 @@ from datetime import datetime
 
 from googleapiclient.discovery import build
 
-from .models import Candidate, parse_iso8601_duration, parse_rfc3339
+from .models import Candidate, PlaylistItem, parse_iso8601_duration, parse_rfc3339
 
 log = logging.getLogger(__name__)
 
 # Quota costs (units) for reference — daily default is 10,000:
-#   search.list = 100   videos.list = 1   playlistItems.list/insert = 1
-#   subscriptions.list = 1   channels.list = 1   playlists.* = 1/50
+#   search.list = 100   videos.list = 1   playlists.* = 1
+#   playlistItems.list/insert/delete = 1
 
 
 class YouTubeClient:
     def __init__(self, credentials):
         self._svc = build("youtube", "v3", credentials=credentials, cache_discovery=False)
-
-    # ----------------------------------------------------------------- subscriptions
-    def get_subscription_channel_ids(self, max_channels: int) -> list[str]:
-        """Return channel ids the authenticated user is subscribed to (capped)."""
-        ids: list[str] = []
-        page_token = None
-        while len(ids) < max_channels:
-            resp = (
-                self._svc.subscriptions()
-                .list(
-                    part="snippet",
-                    mine=True,
-                    maxResults=50,
-                    order="relevance",
-                    pageToken=page_token,
-                )
-                .execute()
-            )
-            for item in resp.get("items", []):
-                ids.append(item["snippet"]["resourceId"]["channelId"])
-            page_token = resp.get("nextPageToken")
-            if not page_token:
-                break
-        return ids[:max_channels]
-
-    def get_uploads_playlist_ids(self, channel_ids: list[str]) -> dict[str, str]:
-        """Map each channel id to its 'uploads' playlist id (batched 50/call)."""
-        out: dict[str, str] = {}
-        for batch in _chunks(channel_ids, 50):
-            resp = (
-                self._svc.channels()
-                .list(part="contentDetails", id=",".join(batch), maxResults=50)
-                .execute()
-            )
-            for item in resp.get("items", []):
-                uploads = item["contentDetails"]["relatedPlaylists"].get("uploads")
-                if uploads:
-                    out[item["id"]] = uploads
-        return out
-
-    def get_recent_upload_ids(self, uploads_playlist_id: str, limit: int) -> list[str]:
-        """Return the most recent video ids from an uploads playlist."""
-        resp = (
-            self._svc.playlistItems()
-            .list(part="contentDetails", playlistId=uploads_playlist_id, maxResults=min(limit, 50))
-            .execute()
-        )
-        return [it["contentDetails"]["videoId"] for it in resp.get("items", [])]
 
     # ----------------------------------------------------------------- search
     def search_video_ids(
@@ -102,10 +53,10 @@ class YouTubeClient:
         return [it["id"]["videoId"] for it in resp.get("items", []) if it.get("id", {}).get("videoId")]
 
     # ----------------------------------------------------------------- hydration
-    def hydrate_videos(self, video_ids: list[str], subscribed_channel_ids: set[str]) -> list[Candidate]:
+    def hydrate_videos(self, video_ids: list[str]) -> list[Candidate]:
         """Fetch full details for video ids and return Candidate objects.
 
-        Live/upcoming broadcasts are skipped. Order of input ids is not preserved.
+        Live/upcoming broadcasts are skipped. Input order is not preserved.
         """
         candidates: list[Candidate] = []
         unique_ids = list(dict.fromkeys(video_ids))  # de-dupe, preserve order
@@ -123,20 +74,18 @@ class YouTubeClient:
                 if snippet.get("liveBroadcastContent", "none") != "none":
                     continue  # skip live / upcoming
 
-                channel_id = snippet.get("channelId", "")
                 candidates.append(
                     Candidate(
                         video_id=item["id"],
                         title=snippet.get("title", ""),
                         description=snippet.get("description", ""),
-                        channel_id=channel_id,
+                        channel_id=snippet.get("channelId", ""),
                         channel_title=snippet.get("channelTitle", ""),
                         published_at=parse_rfc3339(snippet["publishedAt"]),
                         duration_seconds=parse_iso8601_duration(content.get("duration", "")),
                         view_count=int(stats.get("viewCount", 0)),
                         like_count=int(stats.get("likeCount", 0)),
                         category_id=snippet.get("categoryId"),
-                        from_subscription=channel_id in subscribed_channel_ids,
                     )
                 )
         return candidates
@@ -171,36 +120,39 @@ class YouTubeClient:
         )
         return resp["id"]
 
-    def update_playlist_metadata(self, playlist_id: str, title: str, description: str, privacy: str) -> None:
-        self._svc.playlists().update(
-            part="snippet,status",
-            body={
-                "id": playlist_id,
-                "snippet": {"title": title, "description": description},
-                "status": {"privacyStatus": privacy},
-            },
-        ).execute()
+    def list_playlist_items(self, playlist_id: str) -> list[PlaylistItem]:
+        """Return the playlist's entries with their video id and added-date.
 
-    def list_playlist_item_ids(self, playlist_id: str) -> list[str]:
-        """Return the *playlistItem* ids (needed for deletion), not video ids."""
-        item_ids: list[str] = []
+        ``snippet.publishedAt`` on a playlistItem is when it was *added* to the
+        playlist — exactly what age-out pruning needs.
+        """
+        items: list[PlaylistItem] = []
         page_token = None
         while True:
             resp = (
                 self._svc.playlistItems()
-                .list(part="id", playlistId=playlist_id, maxResults=50, pageToken=page_token)
+                .list(
+                    part="snippet,contentDetails",
+                    playlistId=playlist_id,
+                    maxResults=50,
+                    pageToken=page_token,
+                )
                 .execute()
             )
-            item_ids.extend(it["id"] for it in resp.get("items", []))
+            for it in resp.get("items", []):
+                items.append(
+                    PlaylistItem(
+                        item_id=it["id"],
+                        video_id=it["contentDetails"]["videoId"],
+                        added_at=parse_rfc3339(it["snippet"]["publishedAt"]),
+                    )
+                )
             page_token = resp.get("nextPageToken")
             if not page_token:
-                return item_ids
+                return items
 
-    def clear_playlist(self, playlist_id: str) -> int:
-        item_ids = self.list_playlist_item_ids(playlist_id)
-        for item_id in item_ids:
-            self._svc.playlistItems().delete(id=item_id).execute()
-        return len(item_ids)
+    def remove_playlist_item(self, item_id: str) -> None:
+        self._svc.playlistItems().delete(id=item_id).execute()
 
     def add_video(self, playlist_id: str, video_id: str) -> None:
         self._svc.playlistItems().insert(

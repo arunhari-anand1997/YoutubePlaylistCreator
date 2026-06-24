@@ -24,7 +24,7 @@ def test_minimal_config_uses_defaults(tmp_path):
     cfg = load_config(path)
     assert cfg.playlist.mode == "rolling"
     assert cfg.playlist.privacy == "private"
-    assert cfg.discovery.lookback_hours == 36
+    assert cfg.discovery.lookback_hours == 48
     assert cfg.scoring.weights["recency"] == 1.6  # default preserved
     assert len(cfg.categories) == 1
 

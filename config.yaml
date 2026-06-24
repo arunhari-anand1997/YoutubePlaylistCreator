@@ -1,82 +1,85 @@
 # ============================================================================
 # YoutubePlaylistCreator — daily curation config
-# Tune freely. Everything here is read at runtime; no code changes needed.
+# Search-only discovery (no subscriptions). Favours gaining-traction depth
+# content and penalises clickbait. Tune freely — read at runtime, no code edits.
 # ============================================================================
 
 playlist:
-  title: "🎯 Daily Mix"          # rolling playlist is matched/created by this title
+  title: "🎯 Daily Mix"          # the rolling playlist is matched/created by this title
   description: >-
-    Auto-curated daily by YoutubePlaylistCreator — sports highlights, high-value
-    news, interviews, mini-documentaries and video essays. Refreshed every morning.
+    Auto-curated daily by YoutubePlaylistCreator — gaining-traction deep dives:
+    analysis & explainers, long-form interviews, mini-documentaries, video
+    essays, and tactical sports breakdowns. No clickbait, no subscription feed.
   privacy: "private"             # private | unlisted | public
-  mode: "rolling"                # rolling = clear & refill one playlist | dated = new playlist per day
+  mode: "rolling"                # rolling = accretive playlist (age-out + top-up) | dated = new per day
+  age_out_days: 4                # remove entries that have been in the playlist longer than this
+  max_size: 100                  # safety cap on total playlist length
 
 discovery:
   region_code: "US"
   relevance_language: "en"
-  lookback_hours: 36             # only consider videos published within this window
-  use_subscriptions: true
-  max_subscription_channels: 60  # cap channels scanned (controls API quota)
-  uploads_per_channel: 6         # most-recent uploads pulled per subscribed channel
-  search_results_per_query: 12   # results requested per topic search
+  lookback_hours: 48             # only consider videos published within this window
+  search_results_per_query: 15   # results requested per topic search
 
 scoring:
-  # Relative weights for the ranking signals. Higher = more influential.
+  # Relative influence of each signal. `clickbait` is a PENALTY (subtracted).
   weights:
-    views: 1.0                   # log-scaled view count
-    recency: 1.6                 # how recently it was published (within the lookback window)
-    engagement: 1.2              # like-to-view ratio
-    subscribed_boost: 2.0        # bonus when the video is from a channel you follow
-    keyword_match: 1.0           # category keyword overlap in title/description
+    velocity: 2.0                # views-per-hour — the headline "gaining traction" signal
+    engagement: 1.4             # like-to-view ratio — resonance / quality
+    recency: 1.6                # freshness within the lookback window
+    views: 0.6                  # raw reach (deliberately minor vs. velocity)
+    keyword_match: 1.0          # category keyword overlap
+    clickbait: 2.5              # how hard to punish provocative / baity titles
   exclude_shorts: true
-  min_duration_seconds: 90       # global floor (also filters out Shorts)
-  max_duration_seconds: 7200     # global ceiling (2h)
+  min_duration_seconds: 180      # global floor — skip quick hits, favour substance
+  max_duration_seconds: 9000     # global ceiling (2.5h)
 
-# Each category builds its own candidate pool (subscription uploads that match it +
-# its topic searches), then the top `target` videos are selected.
+# Each category runs its own topic searches; the top `target` (by score) are kept.
 categories:
-  - name: "Sports Highlights"
-    target: 4
-    youtube_category_id: "17"    # Sports
-    queries:
-      - "game highlights"
-      - "match highlights recap"
-    keywords: ["highlights", "recap", "full time", "extended", "match", "game"]
-    min_duration_seconds: 120
-    max_duration_seconds: 1800
-
-  - name: "High-Value News"
+  - name: "Current Affairs & Analysis"
     target: 4
     youtube_category_id: "25"    # News & Politics
     queries:
       - "news analysis explained"
-      - "top stories today"
-    keywords: ["news", "analysis", "explained", "report", "briefing"]
-    min_duration_seconds: 180
-    max_duration_seconds: 2400
+      - "geopolitics explained deep dive"
+      - "what is happening explained analysis"
+    keywords: ["analysis", "explained", "breakdown", "deep dive", "context", "why", "what happened"]
+    min_duration_seconds: 360
 
-  - name: "Interviews"
+  - name: "Sports Storylines & Tactics"
+    target: 3
+    youtube_category_id: "17"    # Sports
+    queries:
+      - "tactical analysis breakdown"
+      - "player story explained"
+      - "scouting report film breakdown"
+    keywords: ["tactical", "analysis", "breakdown", "story", "explained", "scouting", "how", "the rise of"]
+    min_duration_seconds: 360
+    max_duration_seconds: 3600
+
+  - name: "Long-form Interviews"
     target: 3
     queries:
       - "long form interview"
-      - "in depth interview"
-    keywords: ["interview", "conversation", "in conversation", "sits down", "talks"]
-    min_duration_seconds: 600
+      - "in depth interview conversation"
+    keywords: ["interview", "conversation", "in conversation", "sits down", "long form"]
+    min_duration_seconds: 900
 
   - name: "Mini Documentaries"
     target: 3
     queries:
       - "mini documentary"
-      - "short documentary"
-    keywords: ["documentary", "doc", "the story of", "how", "inside"]
-    min_duration_seconds: 480
-    max_duration_seconds: 3600
+      - "short documentary the story of"
+    keywords: ["documentary", "the story of", "inside", "how", "the rise and fall"]
+    min_duration_seconds: 600
+    max_duration_seconds: 4500
 
-  - name: "Video Essays"
+  - name: "Video Essays & Explainers"
     target: 3
     queries:
       - "video essay"
-      - "deep dive essay"
-    keywords: ["essay", "video essay", "deep dive", "why", "the problem with", "explained"]
+      - "explainer how it works"
+      - "the economics of explained"
+    keywords: ["essay", "explainer", "how", "why", "explained", "deep dive", "the economics of"]
     min_duration_seconds: 480
-    max_duration_seconds: 3600
+    max_duration_seconds: 4500

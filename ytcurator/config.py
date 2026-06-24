@@ -19,7 +19,9 @@ class PlaylistConfig:
     title: str = "🎯 Daily Mix"
     description: str = "Auto-curated daily by YoutubePlaylistCreator."
     privacy: str = "private"  # private | unlisted | public
-    mode: str = "rolling"  # rolling | dated
+    mode: str = "rolling"  # rolling (age-out + top-up) | dated (new playlist per day)
+    age_out_days: int = 4  # remove entries older than this many days
+    max_size: int = 100  # safety cap on playlist length
 
     def __post_init__(self) -> None:
         if self.privacy not in {"private", "unlisted", "public"}:
@@ -32,22 +34,22 @@ class PlaylistConfig:
 class DiscoveryConfig:
     region_code: str = "US"
     relevance_language: str = "en"
-    lookback_hours: int = 36
-    use_subscriptions: bool = True
-    max_subscription_channels: int = 60
-    uploads_per_channel: int = 6
-    search_results_per_query: int = 12
+    lookback_hours: int = 48  # only consider videos published within this window
+    search_results_per_query: int = 15
 
 
 @dataclass
 class ScoringConfig:
+    # Relative weights for the ranking signals. ``clickbait`` is a PENALTY
+    # (subtracted), the rest are positive contributions.
     weights: dict[str, float] = field(
         default_factory=lambda: {
-            "views": 1.0,
-            "recency": 1.6,
-            "engagement": 1.2,
-            "subscribed_boost": 2.0,
-            "keyword_match": 1.0,
+            "velocity": 2.0,  # views-per-hour — "gaining traction"
+            "engagement": 1.4,  # like-to-view ratio — resonance/quality
+            "recency": 1.6,  # freshness within the lookback window
+            "views": 0.6,  # raw reach (deliberately minor vs. velocity)
+            "keyword_match": 1.0,  # category keyword overlap
+            "clickbait": 2.0,  # PENALTY weight for provocative/baity titles
         }
     )
     exclude_shorts: bool = True

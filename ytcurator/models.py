@@ -55,7 +55,6 @@ class Candidate:
     view_count: int
     like_count: int
     category_id: str | None
-    from_subscription: bool = False
 
     # Filled in during selection.
     assigned_category: str | None = None
@@ -72,6 +71,19 @@ class Candidate:
             return 0.0
         return self.like_count / self.view_count
 
+    def age_hours(self, now: datetime) -> float:
+        """Hours since publication (floored at 0.5h to avoid divide-by-zero spikes)."""
+        return max((now - self.published_at).total_seconds() / 3600.0, 0.5)
+
     def text_blob(self) -> str:
         """Lowercased title + description, for keyword matching."""
         return f"{self.title}\n{self.description}".lower()
+
+
+@dataclass
+class PlaylistItem:
+    """An entry already in the target playlist (needed for age-out pruning)."""
+
+    item_id: str  # playlistItem id — required to delete the entry
+    video_id: str
+    added_at: datetime  # when it was added to the playlist

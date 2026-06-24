@@ -13,17 +13,19 @@ from .youtube import YouTubeClient
 
 
 def _print_summary(result: CurationResult) -> None:
+    verb = "Would" if result.dry_run else ""
     print()
-    print("=" * 64)
+    print("=" * 68)
     print(f"  Playlist: {result.playlist_title}")
     if result.playlist_id:
         print(f"  https://www.youtube.com/playlist?list={result.playlist_id}")
     print(f"  Considered {result.candidates_considered} candidate videos")
     if result.dry_run:
-        print("  MODE: dry run (no changes made)")
+        print(f"  MODE: dry run — {verb.lower()} remove {result.removed}, "
+              f"keep {result.kept}, add {result.added}")
     else:
-        print(f"  Cleared {result.cleared}, added {result.added} videos")
-    print("=" * 64)
+        print(f"  Aged out {result.removed} · kept {result.kept} · added {result.added}")
+    print("=" * 68)
 
     for category, picks in result.per_category.items():
         print(f"\n▶ {category} ({len(picks)})")
@@ -31,8 +33,9 @@ def _print_summary(result: CurationResult) -> None:
             print("    (nothing matched)")
         for c in picks:
             mins = c.duration_seconds // 60
-            sub = "★" if c.from_subscription else " "
-            print(f"   {sub} [{c.score:5.2f}] {mins:>3}m  {c.title[:64]}")
+            # "+" = newly added this run; "·" = already present / held back
+            mark = "+" if c.video_id in result.added_video_ids else "·"
+            print(f"   {mark} [{c.score:5.2f}] {mins:>3}m  {c.title[:64]}")
             print(f"          {c.channel_title} · {c.view_count:,} views · {c.url}")
 
     for note in result.notes:

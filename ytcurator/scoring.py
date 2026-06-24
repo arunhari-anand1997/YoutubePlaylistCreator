@@ -1,17 +1,64 @@
 """Pure ranking + classification logic — no API calls, fully unit-testable.
 
 Each candidate is first *classified* into the best-fitting category, then *scored*
-within that category. Keeping these functions side-effect-free makes the curation
-behaviour reproducible and easy to test.
+within that category. The scoring favours videos that are **gaining traction**
+(high views-per-hour), resonate (engagement), and match the category — while
+*penalising* provocative / clickbait titles. There is deliberately no
+"subscription" signal: discovery is search-only.
 """
 
 from __future__ import annotations
 
 import math
+import re
 from datetime import datetime
 
 from .config import CategoryConfig, Config, ScoringConfig
 from .models import Candidate
+
+# Phrases that strongly signal baity / provocative framing.
+_CLICKBAIT_PHRASES = (
+    "you won't believe", "you wont believe", "won't believe", "wont believe",
+    "you need to see", "you have to see", "watch before", "before it's deleted",
+    "gone wrong", "gone too far", "will blow your mind", "blew my mind",
+    "mind blown", "jaw dropping", "the truth about", "what they don't want",
+    "they don't want you", "they dont want you", "shocking", "shook",
+    "must see", "must watch", "exposed", "destroys", "destroyed", "obliterates",
+    "owns", "rekt", "epic fail", "insane", "unbelievable", "this is why you",
+    "?!",
+)
+
+
+def clickbait_intensity(title: str) -> float:
+    """Estimate how clickbait-y a title is, from 0.0 (calm) to 1.0 (screaming).
+
+    Combines: baity stock phrases, excessive punctuation, ALL-CAPS shouting,
+    and emoji/symbol spam. Heuristic, but it reliably down-ranks the
+    "SHOCKING!! 😱" school of titles in favour of measured ones.
+    """
+    if not title:
+        return 0.0
+    lowered = title.lower()
+    score = 0.0
+
+    phrase_hits = sum(1 for p in _CLICKBAIT_PHRASES if p in lowered)
+    score += min(phrase_hits, 2) * 0.35
+
+    if title.count("!") + title.count("?") >= 2:
+        score += 0.25
+    if "!!" in title or "??" in title or "?!" in title:
+        score += 0.2
+
+    words = re.findall(r"[A-Za-z]{3,}", title)
+    if words:
+        cap_ratio = sum(1 for w in words if w.isupper()) / len(words)
+        if cap_ratio >= 0.3:
+            score += min(cap_ratio, 0.6)
+
+    if re.search(r"[\U0001F000-\U0001FAFF☀-➿←-⇿]", title):
+        score += 0.15
+
+    return min(score, 1.0)
 
 
 def keyword_overlap(candidate: Candidate, keywords: list[str]) -> float:
@@ -26,9 +73,8 @@ def keyword_overlap(candidate: Candidate, keywords: list[str]) -> float:
 def classify(candidate: Candidate, categories: list[CategoryConfig]) -> tuple[CategoryConfig | None, float]:
     """Pick the best category for a candidate.
 
-    Scoring: an exact YouTube category-id match is worth a strong base signal;
-    keyword overlap refines it. Returns (category, affinity) or (None, 0) when the
-    video matches nothing and so should be dropped.
+    An exact YouTube category-id match is a strong base signal; keyword overlap
+    refines it. Returns (category, affinity) or (None, 0) when nothing matches.
     """
     best: CategoryConfig | None = None
     best_affinity = 0.0
@@ -44,10 +90,22 @@ def classify(candidate: Candidate, categories: list[CategoryConfig]) -> tuple[Ca
 
 
 def _normalized_views(view_count: int) -> float:
-    """Log-scale views into ~0..1 (≈10M views saturates to 1)."""
+    """Log-scale raw views into ~0..1 (≈10M views saturates to 1)."""
     if view_count <= 0:
         return 0.0
     return min(math.log10(view_count + 1) / 7.0, 1.0)
+
+
+def _normalized_velocity(candidate: Candidate, now: datetime) -> float:
+    """Views-per-hour since upload, log-scaled to ~0..1 (≈100k views/hr → 1).
+
+    This is the headline "gaining traction" signal: a 20k-view video that's 3h
+    old beats a 200k-view video that's a week old.
+    """
+    vph = candidate.view_count / candidate.age_hours(now)
+    if vph <= 0:
+        return 0.0
+    return min(math.log10(vph + 1) / 5.0, 1.0)
 
 
 def _normalized_recency(published_at: datetime, now: datetime, lookback_hours: int) -> float:
@@ -72,17 +130,18 @@ def score(
 ) -> dict[str, float]:
     """Return the weighted score breakdown for a candidate within a category.
 
-    The total is stored under the ``"total"`` key.
+    ``clickbait`` contributes a negative amount. The total is under ``"total"``.
     """
     w = scoring.weights
-    features = {
-        "views": _normalized_views(candidate.view_count),
-        "recency": _normalized_recency(candidate.published_at, now, lookback_hours),
+    positives = {
+        "velocity": _normalized_velocity(candidate, now),
         "engagement": _normalized_engagement(candidate),
-        "subscribed_boost": 1.0 if candidate.from_subscription else 0.0,
+        "recency": _normalized_recency(candidate.published_at, now, lookback_hours),
+        "views": _normalized_views(candidate.view_count),
         "keyword_match": keyword_overlap(candidate, category.keywords),
     }
-    breakdown = {name: w.get(name, 0.0) * value for name, value in features.items()}
+    breakdown = {name: w.get(name, 0.0) * value for name, value in positives.items()}
+    breakdown["clickbait"] = -w.get("clickbait", 0.0) * clickbait_intensity(candidate.title)
     breakdown["total"] = sum(breakdown.values())
     return breakdown
 
