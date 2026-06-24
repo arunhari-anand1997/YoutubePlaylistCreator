@@ -58,6 +58,7 @@ class ScoringConfig:
     min_duration_seconds: int = 90
     max_duration_seconds: int = 9000
     clickbait_cutoff: float = 0.35  # open-search videos at/above this are dropped outright
+    min_search_views: int = 2000  # open-search videos below this view count are dropped
     exclude_keywords: list[str] = field(default_factory=list)  # extra low-info terms to block
 
 

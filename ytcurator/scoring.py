@@ -45,7 +45,9 @@ _LOW_INFO = re.compile(
     r"full\s+episode|official\s+trailer|trailer|teaser|music\s+video|"
     r"anime|manga|marvel|mcu|dc\s+universe|star\s+wars|disney|pixar|"
     r"minecraft|fortnite|gta\b|gta\s*6|pokemon|roblox|speedrun|"
-    r"tier|theory\s+explained|ending\s+explained|easter\s+eggs"
+    r"tier|theory\s+explained|ending\s+explained|easter\s+eggs|"
+    r"caught\s+on\s+camera|bodycam|body\s+cam|911\s+call|doorbell\s+camera|"
+    r"my\s+partner\s+was\s+murdered|true\s+crime"
     r")\b",
     re.IGNORECASE,
 )
@@ -196,6 +198,8 @@ def passes_quality(candidate: Candidate, category: CategoryConfig, scoring: Scor
     """
     if candidate.from_allowlist or category.skip_quality_filters:
         return True
+    if candidate.view_count < scoring.min_search_views:
+        return False  # not "gaining traction" — likely a random low-signal upload
     if clickbait_intensity(candidate.title) >= scoring.clickbait_cutoff:
         return False
     if is_low_info(candidate.title, scoring.exclude_keywords):

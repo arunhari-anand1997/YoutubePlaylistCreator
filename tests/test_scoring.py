@@ -149,6 +149,18 @@ def test_quality_filter_blocks_lowinfo_and_clickbait():
     assert scoring.passes_quality(make_candidate(title="A calm essay about train economics"), cat, cfg.scoring)
 
 
+def test_quality_filter_drops_low_view_search_results():
+    cfg = make_config()
+    cfg.scoring.min_search_views = 2000
+    cat = cfg.categories[1]
+    low = make_candidate(title="A perfectly fine niche talk", view_count=280)
+    high = make_candidate(title="A perfectly fine niche talk", view_count=50_000)
+    assert not scoring.passes_quality(low, cat, cfg.scoring)
+    assert scoring.passes_quality(high, cat, cfg.scoring)
+    # but an allowlist upload with few views is still kept
+    assert scoring.passes_quality(make_candidate(title="x", view_count=280, from_allowlist=True), cat, cfg.scoring)
+
+
 def test_quality_filter_bypassed_by_allowlist_and_skip_flag():
     cfg = make_config()
     cat = cfg.categories[1]

@@ -39,6 +39,7 @@ scoring:
   min_duration_seconds: 240      # favour substance over quick hits
   max_duration_seconds: 10800    # 3h
   clickbait_cutoff: 0.35         # open-search videos at/above this are dropped
+  min_search_views: 3000         # open-search videos below this view count are dropped (low-traction)
   exclude_keywords: []           # extra low-info terms to block (besides the built-ins)
 
 categories:
