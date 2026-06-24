@@ -56,6 +56,10 @@ class Candidate:
     like_count: int
     category_id: str | None
 
+    # Discovery provenance.
+    from_allowlist: bool = False  # came from a trusted allowlist channel
+    forced_category: str | None = None  # allowlist uploads route straight to their category
+
     # Filled in during selection.
     assigned_category: str | None = None
     score: float = 0.0

@@ -35,7 +35,8 @@ class DiscoveryConfig:
     region_code: str = "US"
     relevance_language: str = "en"
     lookback_hours: int = 48  # only consider videos published within this window
-    search_results_per_query: int = 15
+    search_results_per_query: int = 12
+    uploads_per_channel: int = 5  # recent uploads pulled per allowlist channel
 
 
 @dataclass
@@ -44,17 +45,20 @@ class ScoringConfig:
     # (subtracted), the rest are positive contributions.
     weights: dict[str, float] = field(
         default_factory=lambda: {
-            "velocity": 2.0,  # views-per-hour — "gaining traction"
-            "engagement": 1.4,  # like-to-view ratio — resonance/quality
-            "recency": 1.6,  # freshness within the lookback window
-            "views": 0.6,  # raw reach (deliberately minor vs. velocity)
+            "trusted": 2.5,  # from a curated allowlist channel
+            "velocity": 1.6,  # views-per-hour — "gaining traction"
+            "engagement": 1.2,  # like-to-view ratio — resonance/quality
+            "recency": 1.4,  # freshness within the lookback window
+            "views": 0.6,  # raw reach (deliberately minor)
             "keyword_match": 1.0,  # category keyword overlap
-            "clickbait": 2.0,  # PENALTY weight for provocative/baity titles
+            "clickbait": 2.5,  # PENALTY weight for provocative/baity titles
         }
     )
     exclude_shorts: bool = True
     min_duration_seconds: int = 90
-    max_duration_seconds: int = 7200
+    max_duration_seconds: int = 9000
+    clickbait_cutoff: float = 0.35  # open-search videos at/above this are dropped outright
+    exclude_keywords: list[str] = field(default_factory=list)  # extra low-info terms to block
 
 
 @dataclass
@@ -62,8 +66,10 @@ class CategoryConfig:
     name: str
     target: int = 3
     youtube_category_id: str | None = None
+    channels: list[str] = field(default_factory=list)  # allowlist: @handles or UC… ids
     queries: list[str] = field(default_factory=list)
     keywords: list[str] = field(default_factory=list)
+    skip_quality_filters: bool = False  # e.g. highlights: don't drop "GAME HIGHLIGHTS!!"
     # Per-category duration overrides; fall back to the global scoring bounds when None.
     min_duration_seconds: int | None = None
     max_duration_seconds: int | None = None
@@ -90,8 +96,10 @@ def _build_category(raw: dict[str, Any]) -> CategoryConfig:
         name=str(raw["name"]),
         target=int(raw.get("target", 3)),
         youtube_category_id=(str(raw["youtube_category_id"]) if raw.get("youtube_category_id") is not None else None),
+        channels=[str(c) for c in raw.get("channels", [])],
         queries=[str(q) for q in raw.get("queries", [])],
         keywords=[str(k).lower() for k in raw.get("keywords", [])],
+        skip_quality_filters=bool(raw.get("skip_quality_filters", False)),
         min_duration_seconds=raw.get("min_duration_seconds"),
         max_duration_seconds=raw.get("max_duration_seconds"),
     )

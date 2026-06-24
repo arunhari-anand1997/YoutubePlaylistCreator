@@ -25,6 +25,46 @@ class YouTubeClient:
     def __init__(self, credentials):
         self._svc = build("youtube", "v3", credentials=credentials, cache_discovery=False)
 
+    # ----------------------------------------------------------------- allowlist channels
+    def resolve_channel_id(self, handle_or_id: str) -> str | None:
+        """Resolve an @handle (or bare name) to a channel id. Pass UC… ids through."""
+        value = handle_or_id.strip()
+        if value.startswith("UC") and len(value) == 24:
+            return value
+        handle = value.lstrip("@")
+        try:
+            resp = self._svc.channels().list(part="id", forHandle=handle).execute()
+            items = resp.get("items", [])
+            if items:
+                return items[0]["id"]
+        except Exception as exc:
+            log.warning("Could not resolve channel handle %r: %s", handle_or_id, exc)
+        return None
+
+    def get_uploads_playlist_ids(self, channel_ids: list[str]) -> dict[str, str]:
+        """Map each channel id to its 'uploads' playlist id (batched 50/call)."""
+        out: dict[str, str] = {}
+        for batch in _chunks(channel_ids, 50):
+            resp = (
+                self._svc.channels()
+                .list(part="contentDetails", id=",".join(batch), maxResults=50)
+                .execute()
+            )
+            for item in resp.get("items", []):
+                uploads = item["contentDetails"]["relatedPlaylists"].get("uploads")
+                if uploads:
+                    out[item["id"]] = uploads
+        return out
+
+    def get_recent_upload_ids(self, uploads_playlist_id: str, limit: int) -> list[str]:
+        """Return the most recent video ids from an uploads playlist."""
+        resp = (
+            self._svc.playlistItems()
+            .list(part="contentDetails", playlistId=uploads_playlist_id, maxResults=min(limit, 50))
+            .execute()
+        )
+        return [it["contentDetails"]["videoId"] for it in resp.get("items", [])]
+
     # ----------------------------------------------------------------- search
     def search_video_ids(
         self,

@@ -1,85 +1,146 @@
 # ============================================================================
 # YoutubePlaylistCreator — daily curation config
-# Search-only discovery (no subscriptions). Favours gaining-traction depth
-# content and penalises clickbait. Tune freely — read at runtime, no code edits.
+#
+# Backbone: a curated allowlist of high-information channels per category
+# (NOT your subscriptions) + strictly-filtered open search. Allowlist uploads
+# are trusted and routed to their category; open-search results must clear a
+# clickbait cutoff and a low-info blocklist. Edit `channels:` freely — handles
+# that don't resolve are skipped with a warning.
 # ============================================================================
 
 playlist:
-  title: "🎯 Daily Mix"          # the rolling playlist is matched/created by this title
+  title: "🎯 Daily Mix"
   description: >-
-    Auto-curated daily by YoutubePlaylistCreator — gaining-traction deep dives:
-    analysis & explainers, long-form interviews, mini-documentaries, video
-    essays, and tactical sports breakdowns. No clickbait, no subscription feed.
-  privacy: "private"             # private | unlisted | public
-  mode: "rolling"                # rolling = accretive playlist (age-out + top-up) | dated = new per day
-  age_out_days: 4                # remove entries that have been in the playlist longer than this
-  max_size: 100                  # safety cap on total playlist length
+    Auto-curated daily — high-information depth content: world affairs, economics,
+    science/tech, expert interviews & podcasts, plus daily sports highlights and
+    tactical analysis. Curated trusted sources, no clickbait, no subscription feed.
+  privacy: "private"
+  mode: "rolling"                # accretive: age-out + top-up (never wiped)
+  age_out_days: 4
+  max_size: 120
 
 discovery:
   region_code: "US"
   relevance_language: "en"
-  lookback_hours: 48             # only consider videos published within this window
-  search_results_per_query: 15   # results requested per topic search
+  lookback_hours: 48
+  search_results_per_query: 12
+  uploads_per_channel: 5         # recent uploads pulled per allowlist channel
 
 scoring:
-  # Relative influence of each signal. `clickbait` is a PENALTY (subtracted).
   weights:
-    velocity: 2.0                # views-per-hour — the headline "gaining traction" signal
-    engagement: 1.4             # like-to-view ratio — resonance / quality
-    recency: 1.6                # freshness within the lookback window
-    views: 0.6                  # raw reach (deliberately minor vs. velocity)
-    keyword_match: 1.0          # category keyword overlap
-    clickbait: 2.5              # how hard to punish provocative / baity titles
+    trusted: 2.5                 # from a curated allowlist channel — the quality anchor
+    velocity: 1.6                # views-per-hour ("gaining traction")
+    engagement: 1.2              # like-to-view ratio
+    recency: 1.4                 # freshness within the window
+    views: 0.6                   # raw reach (minor)
+    keyword_match: 1.0
+    clickbait: 2.5               # penalty weight for baity titles
   exclude_shorts: true
-  min_duration_seconds: 180      # global floor — skip quick hits, favour substance
-  max_duration_seconds: 9000     # global ceiling (2.5h)
+  min_duration_seconds: 240      # favour substance over quick hits
+  max_duration_seconds: 10800    # 3h
+  clickbait_cutoff: 0.35         # open-search videos at/above this are dropped
+  exclude_keywords: []           # extra low-info terms to block (besides the built-ins)
 
-# Each category runs its own topic searches; the top `target` (by score) are kept.
 categories:
-  - name: "Current Affairs & Analysis"
+  - name: "World Affairs & Geopolitics"
     target: 4
     youtube_category_id: "25"    # News & Politics
+    channels:
+      - "@VoxDotCom"
+      - "@johnnyharris"
+      - "@PolyMatter"
+      - "@WendoverProductions"
+      - "@RealLifeLore"
+      - "@TLDRnewsGlobal"
+      - "@CaspianReport"
+      - "@DWDocumentary"
     queries:
-      - "news analysis explained"
-      - "geopolitics explained deep dive"
-      - "what is happening explained analysis"
-    keywords: ["analysis", "explained", "breakdown", "deep dive", "context", "why", "what happened"]
+      - "geopolitics analysis explained"
+      - "foreign policy explained"
+    keywords: ["geopolitics", "analysis", "explained", "foreign policy", "why", "the rise of", "conflict"]
     min_duration_seconds: 360
 
-  - name: "Sports Storylines & Tactics"
+  - name: "Economics, Finance & Markets"
     target: 3
-    youtube_category_id: "17"    # Sports
+    youtube_category_id: "25"
+    channels:
+      - "@PBoyle"               # Patrick Boyle
+      - "@MoneyMacro"
+      - "@ThePlainBagel"
+      - "@Asianometry"
+      - "@CNBCi"                # CNBC International
+      - "@FinancialTimes"
+      - "@EconomicsExplained"
     queries:
-      - "tactical analysis breakdown"
-      - "player story explained"
-      - "scouting report film breakdown"
-    keywords: ["tactical", "analysis", "breakdown", "story", "explained", "scouting", "how", "the rise of"]
+      - "economics explained analysis"
+      - "markets analysis deep dive"
+    keywords: ["economics", "economy", "markets", "finance", "analysis", "explained", "why", "inflation"]
+    min_duration_seconds: 360
+
+  - name: "Science, Tech & History"
+    target: 3
+    youtube_category_id: "28"    # Science & Technology
+    channels:
+      - "@veritasium"
+      - "@kurzgesagt"
+      - "@QuantaScienceChannel"
+      - "@RealEngineering"
+      - "@pbsspacetime"
+      - "@Asianometry"
+      - "@KingsandGenerals"
+      - "@FallofCivilizationsPodcast"
+    queries:
+      - "science explained documentary"
+      - "history documentary"
+    keywords: ["science", "engineering", "technology", "history", "documentary", "how", "why", "explained"]
+    min_duration_seconds: 360
+
+  - name: "Expert Interviews & Podcasts"
+    target: 3
+    channels:
+      - "@lexfridman"
+      - "@DwarkeshPatel"
+      - "@TheDiaryOfACEO"
+      - "@a16z"
+      - "@ycombinator"
+      - "@bigthink"
+      - "@TED"
+    queries:
+      - "long form interview researcher"
+      - "in depth interview expert"
+    keywords: ["interview", "conversation", "in conversation", "podcast", "sits down", "fireside"]
+    min_duration_seconds: 1200
+
+  - name: "Sports Highlights"        # today's games — exempt from the strict filters
+    target: 5
+    youtube_category_id: "17"    # Sports
+    skip_quality_filters: true
+    channels:
+      - "@NBA"
+      - "@NFL"
+      - "@MLB"
+      - "@premierleague"
+      - "@UEFA"
+      - "@cbssportsgolazo"
+    queries:
+      - "full game highlights"
+      - "match highlights"
+    keywords: ["highlights", "recap", "full time", "game", "match", "extended"]
+    min_duration_seconds: 240
+    max_duration_seconds: 1800
+
+  - name: "Sports Analysis & Storylines"
+    target: 3
+    youtube_category_id: "17"
+    channels:
+      - "@tifofootball"
+      - "@SecretBase"
+      - "@JxmyHighroller"
+      - "@ThinkingBasketball"
+      - "@ZonalMarking"
+    queries:
+      - "tactical analysis breakdown football"
+      - "nba film breakdown analysis"
+    keywords: ["tactical", "analysis", "breakdown", "story", "explained", "scouting", "the rise of"]
     min_duration_seconds: 360
     max_duration_seconds: 3600
-
-  - name: "Long-form Interviews"
-    target: 3
-    queries:
-      - "long form interview"
-      - "in depth interview conversation"
-    keywords: ["interview", "conversation", "in conversation", "sits down", "long form"]
-    min_duration_seconds: 900
-
-  - name: "Mini Documentaries"
-    target: 3
-    queries:
-      - "mini documentary"
-      - "short documentary the story of"
-    keywords: ["documentary", "the story of", "inside", "how", "the rise and fall"]
-    min_duration_seconds: 600
-    max_duration_seconds: 4500
-
-  - name: "Video Essays & Explainers"
-    target: 3
-    queries:
-      - "video essay"
-      - "explainer how it works"
-      - "the economics of explained"
-    keywords: ["essay", "explainer", "how", "why", "explained", "deep dive", "the economics of"]
-    min_duration_seconds: 480
-    max_duration_seconds: 4500

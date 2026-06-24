@@ -35,7 +35,8 @@ def _print_summary(result: CurationResult) -> None:
             mins = c.duration_seconds // 60
             # "+" = newly added this run; "·" = already present / held back
             mark = "+" if c.video_id in result.added_video_ids else "·"
-            print(f"   {mark} [{c.score:5.2f}] {mins:>3}m  {c.title[:64]}")
+            trust = "★" if c.from_allowlist else " "  # ★ = curated trusted source
+            print(f"   {mark}{trust}[{c.score:5.2f}] {mins:>3}m  {c.title[:64]}")
             print(f"          {c.channel_title} · {c.view_count:,} views · {c.url}")
 
     for note in result.notes:

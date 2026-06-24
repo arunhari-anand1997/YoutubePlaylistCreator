@@ -25,7 +25,7 @@ def test_minimal_config_uses_defaults(tmp_path):
     assert cfg.playlist.mode == "rolling"
     assert cfg.playlist.privacy == "private"
     assert cfg.discovery.lookback_hours == 48
-    assert cfg.scoring.weights["recency"] == 1.6  # default preserved
+    assert cfg.scoring.weights["recency"] == 1.4  # default preserved
     assert len(cfg.categories) == 1
 
 
@@ -42,7 +42,7 @@ def test_partial_weights_merge_over_defaults(tmp_path):
     )
     cfg = load_config(path)
     assert cfg.scoring.weights["views"] == 5.0       # overridden
-    assert cfg.scoring.weights["recency"] == 1.6     # untouched default
+    assert cfg.scoring.weights["recency"] == 1.4     # untouched default
 
 
 def test_effective_duration_falls_back_to_global(tmp_path):

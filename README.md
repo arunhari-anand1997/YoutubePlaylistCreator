@@ -1,40 +1,48 @@
 # YoutubePlaylistCreator
 
 Auto-curate a **daily YouTube playlist** on your own account — built to surface
-**gaining-traction depth content** and steer clear of provocative clickbait. It
-discovers videos by topic search (**not** your subscription feed), ranks them by
-how fast they're picking up steam, and keeps an *accreting* playlist that ages
-out instead of wiping. Categories:
+**high-information depth content** and ruthlessly filter out clickbait and
+entertainment fluff. Its backbone is a **curated allowlist of trusted, high-density
+channels** per topic (*not* your subscription feed), supplemented by
+strictly-filtered open search. It keeps an *accreting* playlist that ages out
+instead of wiping. Categories:
 
-- 📰 Current affairs & analysis
-- 🏟️ Sports storylines & tactics (breakdowns, not raw highlights)
-- 🎙️ Long-form interviews
-- 🎬 Mini-documentaries
-- ✍️ Video essays & explainers
+- 🌍 World affairs & geopolitics
+- 💹 Economics, finance & markets
+- 🔬 Science, tech & history
+- 🎙️ Expert interviews & podcasts
+- 🏟️ Sports highlights (today's games)
+- 📊 Sports analysis & storylines
 
-Categories, ranking weights, and the age-out window are all driven by
-[`config.yaml`](config.yaml) — no code changes needed to retune it.
+Channels, categories, ranking weights, filters, and the age-out window are all
+driven by [`config.yaml`](config.yaml) — no code changes needed to retune it.
 
 ## How it works
 
 ```
-topic searches ─► hydrate & filter ─► classify into categories ─► score & rank
-                                                                        │
-                                                                        ▼
+allowlist uploads ─┐
+                   ├─► hydrate ─► quality gate ─► classify/route ─► score & rank
+topic searches ────┘            (drop clickbait & low-info)            │
+                                                                       ▼
             rolling "Daily Mix"  ◄──  age out entries > N days, then top up
 ```
 
-1. **Discovery (search-only).** Per-category topic searches over a recent window
-   (`lookback_hours`). No subscriptions — the goal is the best of the whole
-   platform, not an echo of who you follow.
-2. **Classification.** Each video is assigned to its single best-fitting category
-   using YouTube's category id and your keyword lists.
-3. **Scoring.** Videos compete within a category on a weighted blend of:
-   **view-velocity** (views-per-hour — the "gaining traction" signal),
-   engagement (likes/views), recency, raw views, and keyword relevance — *minus*
-   a **clickbait penalty** that down-ranks ALL-CAPS / "SHOCKING!!" / baity
-   titles. The top `target` per category are kept.
-4. **Reconcile (age-out + top-up).** The picks are interleaved (so topics mix)
+1. **Discovery (allowlist + strict search).** Recent uploads from a hand-picked
+   set of high-signal channels per category (trusted, routed straight to their
+   category), **plus** per-category topic searches over a recent window
+   (`lookback_hours`). No subscriptions.
+2. **Quality gate.** Open-search results must clear a **clickbait cutoff** and a
+   **low-information blocklist** (reactions, tier lists, rankings, compilations,
+   trailers, IP/franchise fluff, TV episode dumps…). Allowlist channels and the
+   highlights category bypass this gate.
+3. **Classify / route.** Allowlist uploads go straight to the category they were
+   pulled for; search results are classified by YouTube category id + keywords.
+4. **Scoring.** Videos compete within a category on a weighted blend of: a
+   **trust boost** for allowlist sources, **view-velocity** (views-per-hour —
+   "gaining traction"), engagement (likes/views), recency, raw views, and
+   keyword relevance — *minus* a **clickbait penalty**. The top `target` per
+   category are kept.
+5. **Reconcile (age-out + top-up).** The picks are interleaved (so topics mix)
    into one rolling playlist. Each run **removes only entries that have been in
    the playlist longer than `age_out_days`** and adds fresh picks that aren't
    already there — so your unwatched backlog survives day to day. Switch to a new

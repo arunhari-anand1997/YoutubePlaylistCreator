@@ -35,6 +35,31 @@ _RAGE_VERBS = re.compile(
     re.IGNORECASE,
 )
 
+# Low-information / entertainment-fluff markers. Open-search videos matching any
+# of these are dropped before ranking (allowlist channels are exempt).
+_LOW_INFO = re.compile(
+    r"\b("
+    r"reaction|reacts?\s+to|tier\s*list|ranked|ranking|compilation|"
+    r"try\s+not\s+to|i\s+tried|i\s+spent|24\s+hours|last\s+to\s+leave|"
+    r"unboxing|haul|mukbang|asmr|prank|vlog|storytime|"
+    r"full\s+episode|official\s+trailer|trailer|teaser|music\s+video|"
+    r"anime|manga|marvel|mcu|dc\s+universe|star\s+wars|disney|pixar|"
+    r"minecraft|fortnite|gta\b|gta\s*6|pokemon|roblox|speedrun|"
+    r"tier|theory\s+explained|ending\s+explained|easter\s+eggs"
+    r")\b",
+    re.IGNORECASE,
+)
+# Season/episode dumps, e.g. "(S18, E13)" or "S2 E3".
+_EPISODE_TAG = re.compile(r"\bS\d{1,2}\s*[,.]?\s*E\d{1,2}\b", re.IGNORECASE)
+
+
+def is_low_info(title: str, extra_terms: list[str]) -> bool:
+    """True if a title looks like entertainment fluff / low information value."""
+    if _LOW_INFO.search(title) or _EPISODE_TAG.search(title):
+        return True
+    lowered = title.lower()
+    return any(term.lower() in lowered for term in extra_terms)
+
 
 def clickbait_intensity(title: str) -> float:
     """Estimate how clickbait-y a title is, from 0.0 (calm) to 1.0 (screaming).
@@ -150,6 +175,7 @@ def score(
     """
     w = scoring.weights
     positives = {
+        "trusted": 1.0 if candidate.from_allowlist else 0.0,
         "velocity": _normalized_velocity(candidate, now),
         "engagement": _normalized_engagement(candidate),
         "recency": _normalized_recency(candidate.published_at, now, lookback_hours),
@@ -160,6 +186,21 @@ def score(
     breakdown["clickbait"] = -w.get("clickbait", 0.0) * clickbait_intensity(candidate.title)
     breakdown["total"] = sum(breakdown.values())
     return breakdown
+
+
+def passes_quality(candidate: Candidate, category: CategoryConfig, scoring: ScoringConfig) -> bool:
+    """Hard gate for open-search results: reject clickbait and low-info fluff.
+
+    Allowlist videos and categories flagged ``skip_quality_filters`` (e.g. sports
+    highlights) bypass this entirely.
+    """
+    if candidate.from_allowlist or category.skip_quality_filters:
+        return True
+    if clickbait_intensity(candidate.title) >= scoring.clickbait_cutoff:
+        return False
+    if is_low_info(candidate.title, scoring.exclude_keywords):
+        return False
+    return True
 
 
 def passes_duration(candidate: Candidate, config: Config, category: CategoryConfig) -> bool:
@@ -188,8 +229,15 @@ def select(
     for cand in candidates:
         if cand.video_id in seen:
             continue
-        category, affinity = classify(cand, config.categories)
-        if category is None or affinity <= 0:
+        # Allowlist uploads route straight to the category they were pulled for;
+        # everything else is classified by category-id + keywords.
+        if cand.forced_category and cand.forced_category in cat_by_name:
+            category = cat_by_name[cand.forced_category]
+        else:
+            category, affinity = classify(cand, config.categories)
+            if category is None or affinity <= 0:
+                continue
+        if not passes_quality(cand, category, config.scoring):
             continue
         if not passes_duration(cand, config, category):
             continue

@@ -1,11 +1,15 @@
-"""Candidate gathering — search-only discovery.
+"""Candidate gathering — curated allowlist + strictly-filtered open search.
 
-There is intentionally no subscriptions stream. The point of this tool is to
-surface *gaining-traction* depth content (analysis, interviews, documentaries,
-explainers, tactical sports breakdowns) regardless of who you follow — and to
-avoid the provocative/clickbait skew of a subscription feed. Per-category topic
-searches build the candidate pool, which is then de-duplicated and hydrated with
-a single batched ``videos.list`` pass to keep quota low.
+Two streams feed the pool:
+
+* **Allowlist uploads** — recent uploads from a hand-picked set of high-signal
+  channels per category. These are *trusted*: routed straight to the category
+  they were pulled for, and exempt from the open-search quality filters.
+* **Topic search** — per-category queries across all of YouTube. These are NOT
+  trusted; selection applies hard clickbait/low-info filters to them.
+
+There is no subscription stream. Everything is de-duplicated and hydrated with a
+single batched ``videos.list`` pass to keep quota low.
 """
 
 from __future__ import annotations
@@ -20,11 +24,48 @@ from .youtube import YouTubeClient
 log = logging.getLogger(__name__)
 
 
+def _resolve_allowlist(client: YouTubeClient, config: Config) -> dict[str, str]:
+    """Resolve every category's channel handles to ids → {channel_id: category_name}.
+
+    Resolution is cached across categories within this run by handle.
+    """
+    channel_to_category: dict[str, str] = {}
+    handle_cache: dict[str, str | None] = {}
+    for category in config.categories:
+        for handle in category.channels:
+            if handle not in handle_cache:
+                handle_cache[handle] = client.resolve_channel_id(handle)
+            channel_id = handle_cache[handle]
+            if channel_id and channel_id not in channel_to_category:
+                channel_to_category[channel_id] = category.name
+    return channel_to_category
+
+
 def gather_candidates(client: YouTubeClient, config: Config, now: datetime | None = None) -> list[Candidate]:
     now = now or datetime.now(timezone.utc)
     published_after = now - timedelta(hours=config.discovery.lookback_hours)
 
     video_ids: list[str] = []
+    forced_category: dict[str, str] = {}  # video_id -> category, for allowlist uploads
+    allowlist_channel_ids: set[str] = set()
+
+    # --- Stream 1: allowlist uploads ----------------------------------------
+    channel_to_category = _resolve_allowlist(client, config)
+    allowlist_channel_ids = set(channel_to_category)
+    log.info("Resolved %d allowlist channels", len(allowlist_channel_ids))
+    if allowlist_channel_ids:
+        uploads_map = client.get_uploads_playlist_ids(list(allowlist_channel_ids))
+        for channel_id, uploads_playlist in uploads_map.items():
+            try:
+                ids = client.get_recent_upload_ids(uploads_playlist, config.discovery.uploads_per_channel)
+                category = channel_to_category[channel_id]
+                for vid in ids:
+                    video_ids.append(vid)
+                    forced_category.setdefault(vid, category)
+            except Exception as exc:
+                log.warning("Skipping uploads for channel %s: %s", channel_id, exc)
+
+    # --- Stream 2: topic search ---------------------------------------------
     for category in config.categories:
         for query in category.queries:
             try:
@@ -41,8 +82,16 @@ def gather_candidates(client: YouTubeClient, config: Config, now: datetime | Non
             except Exception as exc:
                 log.warning("Search failed for query %r: %s", query, exc)
 
+    # --- Hydrate, tag provenance, window filter -----------------------------
     candidates = client.hydrate_videos(video_ids)
+    for c in candidates:
+        if c.channel_id in allowlist_channel_ids:
+            c.from_allowlist = True
+        if c.video_id in forced_category:
+            c.forced_category = forced_category[c.video_id]
+
     fresh = [c for c in candidates if c.published_at >= published_after]
-    log.info("Hydrated %d videos, %d within the %dh window",
-             len(candidates), len(fresh), config.discovery.lookback_hours)
+    log.info("Hydrated %d videos (%d allowlist), %d within the %dh window",
+             len(candidates), sum(c.from_allowlist for c in candidates),
+             len(fresh), config.discovery.lookback_hours)
     return fresh

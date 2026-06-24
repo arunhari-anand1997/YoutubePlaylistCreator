@@ -127,6 +127,53 @@ def test_clickbait_penalizes_score():
     )
 
 
+def test_trusted_boost_raises_score():
+    cfg = make_config()
+    cat = cfg.categories[1]
+    trusted = make_candidate(from_allowlist=True, title="essay")
+    plain = make_candidate(from_allowlist=False, title="essay")
+    assert (
+        scoring.score(trusted, cat, cfg.scoring, NOW, 36)["total"]
+        > scoring.score(plain, cat, cfg.scoring, NOW, 36)["total"]
+    )
+
+
+# --- quality gate -----------------------------------------------------------
+
+def test_quality_filter_blocks_lowinfo_and_clickbait():
+    cfg = make_config()
+    cat = cfg.categories[1]
+    assert not scoring.passes_quality(make_candidate(title="My REACTION to the new anime trailer"), cat, cfg.scoring)
+    assert not scoring.passes_quality(make_candidate(title="Ranking EVERY movie tier list"), cat, cfg.scoring)
+    assert not scoring.passes_quality(make_candidate(title="SHOCKING!! you won't BELIEVE this?!"), cat, cfg.scoring)
+    assert scoring.passes_quality(make_candidate(title="A calm essay about train economics"), cat, cfg.scoring)
+
+
+def test_quality_filter_bypassed_by_allowlist_and_skip_flag():
+    cfg = make_config()
+    cat = cfg.categories[1]
+    # allowlist channel is trusted even with a baity title
+    assert scoring.passes_quality(make_candidate(title="REACTION compilation", from_allowlist=True), cat, cfg.scoring)
+    # a category that opts out of the filters (e.g. highlights)
+    hl = CategoryConfig(name="HL", skip_quality_filters=True, keywords=[])
+    assert scoring.passes_quality(make_candidate(title="GAME HIGHLIGHTS!! full match"), hl, cfg.scoring)
+
+
+def test_forced_category_routes_allowlist_upload():
+    cfg = make_config()
+    # Title reads like Sports highlights, but the allowlist forces it to Essays.
+    c = make_candidate(
+        video_id="f1",
+        title="match highlights recap",
+        forced_category="Essays",
+        from_allowlist=True,
+        duration_seconds=600,
+    )
+    selected = scoring.select([c], cfg, NOW)
+    assert [x.video_id for x in selected["Essays"]] == ["f1"]
+    assert all(x.video_id != "f1" for x in selected["Sports"])
+
+
 def test_recency_decays():
     cfg = make_config()
     cat = cfg.categories[1]
