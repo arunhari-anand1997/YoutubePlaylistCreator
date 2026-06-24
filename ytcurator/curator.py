@@ -34,15 +34,24 @@ def _playlist_title(config: Config, now: datetime) -> str:
     return config.playlist.title
 
 
-def _resolve_playlist(client: YouTubeClient, config: Config, title: str, dry_run: bool) -> str | None:
-    """Find the rolling playlist (or create it). For dated mode, always create."""
+def _resolve_playlist(
+    client: YouTubeClient, config: Config, title: str, dry_run: bool
+) -> tuple[str | None, bool]:
+    """Resolve the target playlist.
+
+    Returns ``(playlist_id, created)``. ``created`` is True when a brand-new
+    playlist was made this run — callers can then skip the clear step, since a
+    fresh playlist is already empty (and isn't yet queryable via
+    ``playlistItems.list`` due to YouTube's eventual consistency).
+    """
     if config.playlist.mode == "rolling":
         existing = client.find_playlist_by_title(title)
         if existing:
-            return existing
+            return existing, False
     if dry_run:
-        return None
-    return client.create_playlist(title, config.playlist.description, config.playlist.privacy)
+        return None, False
+    new_id = client.create_playlist(title, config.playlist.description, config.playlist.privacy)
+    return new_id, True
 
 
 def curate(client: YouTubeClient, config: Config, *, dry_run: bool = False, now: datetime | None = None) -> CurationResult:
@@ -67,7 +76,7 @@ def curate(client: YouTubeClient, config: Config, *, dry_run: bool = False, now:
         result.notes.append("No videos matched the criteria today — playlist left unchanged.")
         return result
 
-    playlist_id = _resolve_playlist(client, config, title, dry_run)
+    playlist_id, created = _resolve_playlist(client, config, title, dry_run)
     result.playlist_id = playlist_id
 
     if dry_run:
@@ -75,8 +84,10 @@ def curate(client: YouTubeClient, config: Config, *, dry_run: bool = False, now:
         return result
 
     assert playlist_id is not None
-    # Keep rolling playlists tidy and rename in case the title/description changed.
-    if config.playlist.mode == "rolling":
+    # Only an existing rolling playlist needs clearing/renaming. A freshly created
+    # one is already empty and was created with the right metadata — and clearing
+    # it immediately would 404 (YouTube hasn't propagated it yet).
+    if config.playlist.mode == "rolling" and not created:
         result.cleared = client.clear_playlist(playlist_id)
         client.update_playlist_metadata(
             playlist_id, title, config.playlist.description, config.playlist.privacy
