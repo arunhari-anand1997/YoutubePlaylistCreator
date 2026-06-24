@@ -48,6 +48,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="config.yaml", help="Path to config YAML (default: config.yaml)")
     parser.add_argument("--token-file", default="token.json", help="Local OAuth token file (default: token.json)")
     parser.add_argument("--dry-run", action="store_true", help="Select videos but do not modify any playlist")
+    parser.add_argument("--reset", action="store_true", help="One-off: clear the existing playlist before topping up")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
     args = parser.parse_args(argv)
 
@@ -69,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     client = YouTubeClient(credentials)
-    result = curate(client, config, dry_run=args.dry_run)
+    result = curate(client, config, dry_run=args.dry_run, reset=args.reset)
     _print_summary(result)
     return 0
 

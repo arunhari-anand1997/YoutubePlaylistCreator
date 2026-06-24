@@ -12,6 +12,10 @@ on:
         description: "Run without modifying any playlist"
         type: boolean
         default: false
+      reset:
+        description: "Clear the existing playlist before topping up (one-off clean slate)"
+        type: boolean
+        default: false
 
 concurrency:
   group: daily-playlist
@@ -39,4 +43,5 @@ jobs:
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: |
           python -m ytcurator.cli --config config.yaml \
-            ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }} \
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.reset) && '--reset' || '' }}

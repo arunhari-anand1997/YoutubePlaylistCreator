@@ -106,6 +106,14 @@ def test_clickbait_intensity_scale():
     assert scoring.clickbait_intensity("SHOCKING!! You won't BELIEVE what happened?!") > 0.6
 
 
+def test_clickbait_catches_rage_verbs_and_shouting():
+    # rage verb + a single shouted word, otherwise normal case
+    assert scoring.clickbait_intensity("Fans EVISCERATES Oprah over old interview") > 0.5
+    assert scoring.clickbait_intensity("Critic SLAMS the new movie") > 0.3
+    # legit title with short acronyms should stay calm
+    assert scoring.clickbait_intensity("BBC News: why is Europe so hot right now") < 0.2
+
+
 def test_clickbait_penalizes_score():
     cfg = make_config()
     cat = cfg.categories[1]

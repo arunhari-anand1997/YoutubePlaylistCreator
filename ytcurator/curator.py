@@ -79,7 +79,14 @@ def partition_prune(
     return to_remove, kept_video_ids
 
 
-def curate(client: YouTubeClient, config: Config, *, dry_run: bool = False, now: datetime | None = None) -> CurationResult:
+def curate(
+    client: YouTubeClient,
+    config: Config,
+    *,
+    dry_run: bool = False,
+    reset: bool = False,
+    now: datetime | None = None,
+) -> CurationResult:
     now = now or datetime.now(timezone.utc)
     title = _playlist_title(config, now)
 
@@ -114,7 +121,13 @@ def curate(client: YouTubeClient, config: Config, *, dry_run: bool = False, now:
 
     # ---- Rolling mode: age-out + top-up, never a full wipe. ----
     existing = client.list_playlist_items(playlist_id) if (playlist_id and not created) else []
-    remove_ids, kept_video_ids = partition_prune(existing, now, config.playlist.age_out_days)
+    if reset:
+        # One-off clean slate: drop everything currently in the playlist.
+        remove_ids = [it.item_id for it in existing]
+        kept_video_ids: set[str] = set()
+        result.notes.append("Reset: clearing the existing playlist before top-up.")
+    else:
+        remove_ids, kept_video_ids = partition_prune(existing, now, config.playlist.age_out_days)
     result.kept = len(kept_video_ids)
 
     # Don't re-add something that's still present, nor resurrect one we're aging

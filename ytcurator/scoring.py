@@ -23,18 +23,26 @@ _CLICKBAIT_PHRASES = (
     "gone wrong", "gone too far", "will blow your mind", "blew my mind",
     "mind blown", "jaw dropping", "the truth about", "what they don't want",
     "they don't want you", "they dont want you", "shocking", "shook",
-    "must see", "must watch", "exposed", "destroys", "destroyed", "obliterates",
-    "owns", "rekt", "epic fail", "insane", "unbelievable", "this is why you",
-    "?!",
+    "must see", "must watch", "exposed", "rekt", "epic fail", "insane",
+    "unbelievable", "this is why you", "you should be worried", "?!",
+)
+
+# "X DESTROYS Y" rage-bait verbs — matched on word boundaries.
+_RAGE_VERBS = re.compile(
+    r"\b(eviscerat\w*|destroy\w*|obliterat\w*|annihilat\w*|demolish\w*|"
+    r"humiliat\w*|slams|blasts|roasts|schools|torches|shreds|wrecks|owns|"
+    r"claps back|fires back|goes off|melts down|loses it)\b",
+    re.IGNORECASE,
 )
 
 
 def clickbait_intensity(title: str) -> float:
     """Estimate how clickbait-y a title is, from 0.0 (calm) to 1.0 (screaming).
 
-    Combines: baity stock phrases, excessive punctuation, ALL-CAPS shouting,
-    and emoji/symbol spam. Heuristic, but it reliably down-ranks the
-    "SHOCKING!! 😱" school of titles in favour of measured ones.
+    Combines: baity stock phrases, rage-bait verbs ("EVISCERATES", "slams"),
+    excessive punctuation, ALL-CAPS shouting (whole-title *and* single shouted
+    words), and emoji/symbol spam. Heuristic, but it reliably down-ranks the
+    "SHOCKING!! 😱" / "Fan DESTROYS Critic" school of titles.
     """
     if not title:
         return 0.0
@@ -43,6 +51,9 @@ def clickbait_intensity(title: str) -> float:
 
     phrase_hits = sum(1 for p in _CLICKBAIT_PHRASES if p in lowered)
     score += min(phrase_hits, 2) * 0.35
+
+    if _RAGE_VERBS.search(title):
+        score += 0.4
 
     if title.count("!") + title.count("?") >= 2:
         score += 0.25
@@ -54,6 +65,11 @@ def clickbait_intensity(title: str) -> float:
         cap_ratio = sum(1 for w in words if w.isupper()) / len(words)
         if cap_ratio >= 0.3:
             score += min(cap_ratio, 0.6)
+        # A single SHOUTED word (≥4 letters) for emphasis is itself baity,
+        # even when the rest of the title is normal case (e.g. "Selling your SOUL").
+        shouted = [w for w in words if w.isupper() and len(w) >= 4]
+        if shouted and cap_ratio < 0.3:
+            score += min(0.2 * len(shouted), 0.4)
 
     if re.search(r"[\U0001F000-\U0001FAFF☀-➿←-⇿]", title):
         score += 0.15
