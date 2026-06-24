@@ -1,5 +1,7 @@
 name: Daily YouTube Playlist
 
+# Curates a rolling daily playlist. Runs on a schedule and can be triggered
+# manually (with an optional dry-run) from the Actions tab.
 on:
   schedule:
     # 13:00 UTC every day. Adjust to taste (cron is in UTC).
