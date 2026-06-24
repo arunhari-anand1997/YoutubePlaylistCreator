@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+
+# OAuth secrets — NEVER commit these
+client_secret*.json
+token.json
+*.env
+.env
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store

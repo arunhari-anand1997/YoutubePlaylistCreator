@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ytcurator"
+version = "0.1.0"
+description = "Auto-curate a daily YouTube playlist from your subscriptions and topic searches."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "google-api-python-client>=2.100.0",
+    "google-auth>=2.23.0",
+    "google-auth-oauthlib>=1.1.0",
+    "google-auth-httplib2>=0.1.1",
+    "PyYAML>=6.0",
+]
+
+[project.scripts]
+ytcurator = "ytcurator.cli:main"
+
+[tool.setuptools]
+packages = ["ytcurator"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
