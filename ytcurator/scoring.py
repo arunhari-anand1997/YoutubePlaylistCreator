@@ -55,6 +55,20 @@ _LOW_INFO = re.compile(
 _EPISODE_TAG = re.compile(r"\bS\d{1,2}\s*[,.]?\s*E\d{1,2}\b", re.IGNORECASE)
 
 
+# A real game-highlights title: the word "highlights", an explicit full-game tag,
+# or a scoreline like "5-0" / "1 - 0". Rejects press conferences, training
+# sessions, "Team Feature", draft profiles, top-100 lists, etc.
+_GAME_HIGHLIGHT = re.compile(
+    r"(highlight|full[\s-]?(game|match|time)|match\s+recap|extended\s+highlights|"
+    r"\b\d{1,2}\s*[-–]\s*\d{1,2}\b)",
+    re.IGNORECASE,
+)
+
+
+def looks_like_game_highlight(title: str) -> bool:
+    return bool(_GAME_HIGHLIGHT.search(title or ""))
+
+
 def is_low_info(title: str, extra_terms: list[str]) -> bool:
     """True if a title looks like entertainment fluff / low information value."""
     if _LOW_INFO.search(title) or _EPISODE_TAG.search(title):
@@ -241,6 +255,8 @@ def select(
             category, affinity = classify(cand, config.categories)
             if category is None or affinity <= 0:
                 continue
+        if category.highlights_only and not looks_like_game_highlight(cand.title):
+            continue  # keep only real game highlights, not pressers/features/training
         if not passes_quality(cand, category, config.scoring):
             continue
         if not passes_duration(cand, config, category):

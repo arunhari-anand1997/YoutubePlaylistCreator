@@ -116,6 +116,7 @@ categories:
     target: 30                       # comprehensive coverage, not a top-5
     youtube_category_id: "17"    # Sports
     skip_quality_filters: true       # don't drop "GAME HIGHLIGHTS!!" / low-view fresh uploads
+    highlights_only: true            # accept ONLY game highlights, not pressers/training/features
     uploads_per_channel: 18          # NBA/MLB post many game recaps per day
     channels:
       - "@NFL"

@@ -186,6 +186,34 @@ def test_forced_category_routes_allowlist_upload():
     assert all(x.video_id != "f1" for x in selected["Sports"])
 
 
+def test_looks_like_game_highlight():
+    good = [
+        "Highlights | Portugal 5-0 Uzbekistan | FIFA World Cup 2026",
+        "YANKEES vs. TIGERS Full Game Highlights (6/23/26) | MLB",
+        "Colombia 1 - 0 Congo DR | Extended Highlights",
+    ]
+    bad = [
+        "Team Feature: Egypt | The Pride and The Passion",
+        "Spain Train Before Uruguay | FIFA World Cup 2026",
+        "France On Playing Norway | Guy Stephan Takes Questions",
+        "All 29 Second Round Picks of the 2026 NBA Draft",
+    ]
+    assert all(scoring.looks_like_game_highlight(t) for t in good)
+    assert not any(scoring.looks_like_game_highlight(t) for t in bad)
+
+
+def test_highlights_only_category_drops_nongame():
+    cfg = make_config()
+    cfg.categories[0].highlights_only = True
+    cfg.categories[0].keywords = ["highlights", "match"]
+    cfg.categories[0].youtube_category_id = "17"
+    game = make_candidate(video_id="g", title="Team A 2-1 Team B | Highlights", category_id="17", from_allowlist=True, duration_seconds=600)
+    presser = make_candidate(video_id="p", title="Coach Takes Questions before the match", category_id="17", from_allowlist=True, duration_seconds=600)
+    selected = scoring.select([game, presser], cfg, NOW)
+    ids = [c.video_id for picks in selected.values() for c in picks]
+    assert "g" in ids and "p" not in ids
+
+
 def test_recency_decays():
     cfg = make_config()
     cat = cfg.categories[1]
