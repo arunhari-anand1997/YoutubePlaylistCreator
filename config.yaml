@@ -17,7 +17,7 @@ playlist:
   privacy: "private"
   mode: "rolling"                # accretive: age-out + top-up (never wiped)
   age_out_days: 4
-  max_size: 120
+  max_size: 250
 
 discovery:
   region_code: "US"
@@ -112,22 +112,40 @@ categories:
     keywords: ["interview", "conversation", "in conversation", "podcast", "sits down", "fireside"]
     min_duration_seconds: 1200
 
-  - name: "Sports Highlights"        # today's games — exempt from the strict filters
-    target: 5
+  - name: "Sports Highlights"        # prior-day games across the major leagues
+    target: 30                       # comprehensive coverage, not a top-5
     youtube_category_id: "17"    # Sports
-    skip_quality_filters: true
+    skip_quality_filters: true       # don't drop "GAME HIGHLIGHTS!!" / low-view fresh uploads
+    uploads_per_channel: 18          # NBA/MLB post many game recaps per day
     channels:
-      - "@NBA"
       - "@NFL"
+      - "@NBA"
+      - "@NHL"
       - "@MLB"
+      - "@FIFA"                  # World Cup / FIFA tournaments
+      - "@UEFA"                  # Champions League, Euros
+      - "@Ligue1"
+      - "@Concacaf"              # Gold Cup, Nations League
       - "@premierleague"
-      - "@UEFA"
-      - "@cbssportsgolazo"
+      - "@cbssportsgolazo"       # US broadcaster: UCL / World Cup / CONCACAF
+      - "@LaLiga"
+      - "@Bundesliga"
+      - "@SerieA"
+      - "@MLSSoccer"
     queries:
+      - "Champions League highlights"
+      - "World Cup highlights"
+      - "Premier League highlights"
+      - "NHL highlights"
+      - "NBA highlights"
+      - "NFL highlights"
+      - "Ligue 1 highlights"
+      - "CONCACAF Gold Cup highlights"
+      - "Euro highlights"
+      - "La Liga highlights"
       - "full game highlights"
-      - "match highlights"
-    keywords: ["highlights", "recap", "full time", "game", "match", "extended"]
-    min_duration_seconds: 240
+    keywords: ["highlights", "recap", "full time", "game", "match", "extended", "full game"]
+    min_duration_seconds: 120        # some highlight packages are short
     max_duration_seconds: 1800
 
   - name: "Sports Analysis & Storylines"

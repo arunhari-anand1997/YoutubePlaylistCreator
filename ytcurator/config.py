@@ -71,6 +71,7 @@ class CategoryConfig:
     queries: list[str] = field(default_factory=list)
     keywords: list[str] = field(default_factory=list)
     skip_quality_filters: bool = False  # e.g. highlights: don't drop "GAME HIGHLIGHTS!!"
+    uploads_per_channel: int | None = None  # override discovery default (e.g. more for sports)
     # Per-category duration overrides; fall back to the global scoring bounds when None.
     min_duration_seconds: int | None = None
     max_duration_seconds: int | None = None
@@ -101,6 +102,7 @@ def _build_category(raw: dict[str, Any]) -> CategoryConfig:
         queries=[str(q) for q in raw.get("queries", [])],
         keywords=[str(k).lower() for k in raw.get("keywords", [])],
         skip_quality_filters=bool(raw.get("skip_quality_filters", False)),
+        uploads_per_channel=raw.get("uploads_per_channel"),
         min_duration_seconds=raw.get("min_duration_seconds"),
         max_duration_seconds=raw.get("max_duration_seconds"),
     )

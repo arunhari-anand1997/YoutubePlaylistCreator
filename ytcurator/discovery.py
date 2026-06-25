@@ -52,13 +52,15 @@ def gather_candidates(client: YouTubeClient, config: Config, now: datetime | Non
     # --- Stream 1: allowlist uploads ----------------------------------------
     channel_to_category = _resolve_allowlist(client, config)
     allowlist_channel_ids = set(channel_to_category)
+    cat_by_name = {c.name: c for c in config.categories}
     log.info("Resolved %d allowlist channels", len(allowlist_channel_ids))
     if allowlist_channel_ids:
         uploads_map = client.get_uploads_playlist_ids(list(allowlist_channel_ids))
         for channel_id, uploads_playlist in uploads_map.items():
             try:
-                ids = client.get_recent_upload_ids(uploads_playlist, config.discovery.uploads_per_channel)
                 category = channel_to_category[channel_id]
+                limit = cat_by_name[category].uploads_per_channel or config.discovery.uploads_per_channel
+                ids = client.get_recent_upload_ids(uploads_playlist, limit)
                 for vid in ids:
                     video_ids.append(vid)
                     forced_category.setdefault(vid, category)
