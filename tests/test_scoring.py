@@ -258,11 +258,42 @@ def test_select_assigns_video_to_single_category():
     assert sum(len(v) for v in selected.values()) == 1
 
 
-def test_interleave_round_robins():
+def test_interleave_spreads_evenly():
     a1, a2 = make_candidate(video_id="a1"), make_candidate(video_id="a2")
     b1 = make_candidate(video_id="b1")
     ordered = scoring.interleave({"A": [a1, a2], "B": [b1]}, ["A", "B"])
     assert [c.video_id for c in ordered] == ["a1", "b1", "a2"]
+
+
+def test_interleave_does_not_clump_large_category_at_tail():
+    big = [make_candidate(video_id=f"s{i}") for i in range(6)]
+    small = [make_candidate(video_id="t0"), make_candidate(video_id="t1")]
+    ordered = scoring.interleave({"BIG": big, "SMALL": small}, ["BIG", "SMALL"])
+    positions = {c.video_id: i for i, c in enumerate(ordered)}
+    # the two small-category items should straddle the list, not be crammed up front
+    assert positions["t0"] < len(ordered) / 2 < positions["t1"]
+
+
+def test_matchup_key_collapses_duplicate_postings():
+    a = "DODGERS vs. TWINS Full Game Highlights (6/24/26) | MLB Highlights"
+    b = "Dodgers vs. Twins Game Highlights (6/24/26) | MLB Highlights"
+    c = "Highlights | Portugal 5-0 Uzbekistan | FIFA World Cup 2026"
+    assert scoring.matchup_key(a) == scoring.matchup_key(b)
+    assert scoring.matchup_key(a) is not None
+    assert scoring.matchup_key(c) == frozenset({"portugal", "uzbekistan"})
+    assert scoring.matchup_key("Some random documentary about whales") is None
+
+
+def test_dedupe_matchups_keeps_highest_score():
+    league = make_candidate(video_id="league", title="Dodgers vs Twins Full Game Highlights")
+    league.score = 5.0
+    team = make_candidate(video_id="team", title="Dodgers vs. Twins Game Highlights")
+    team.score = 3.0
+    other = make_candidate(video_id="other", title="Yankees vs Tigers Highlights")
+    other.score = 4.0
+    out = scoring.dedupe_matchups([league, team, other])
+    ids = {c.video_id for c in out}
+    assert ids == {"league", "other"}  # the duplicate Dodgers-Twins posting is dropped
 
 
 # --- age-out pruning --------------------------------------------------------

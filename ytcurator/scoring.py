@@ -69,6 +69,51 @@ def looks_like_game_highlight(title: str) -> bool:
     return bool(_GAME_HIGHLIGHT.search(title or ""))
 
 
+# Pull the two sides of a matchup out of a highlights title, so the same game
+# posted by a league channel AND a team channel collapses to one entry.
+_VS = re.compile(r"(.+?)\s+(?:vs\.?|v\.?|@)\s+(.+)", re.IGNORECASE)
+_SCORELINE = re.compile(r"(.+?)\s+\d{1,2}\s*[-–]\s*\d{1,2}\s+(.+)")
+_TEAM_NOISE = re.compile(
+    r"\b(full|game|match|extended|highlights?|recap|hls?|fifa|world|cup|copa|mundial|de|la|"
+    r"mlb|nba|nfl|nhl|laliga|liga|serie|premier|league|ligue|bundesliga|uefa|champions|"
+    r"20\d\d|wk|week|men's|women's)\b",
+    re.IGNORECASE,
+)
+
+
+def _team_token(side: str) -> str:
+    cleaned = _TEAM_NOISE.sub(" ", side)
+    cleaned = re.sub(r"[^a-zA-Z\s]", " ", cleaned)  # strip flags/emoji/punct
+    toks = cleaned.split()
+    return toks[0].lower() if toks else ""
+
+
+def matchup_key(title: str):
+    """Return a frozenset of the two teams in a highlights title, or None."""
+    for pattern in (_VS, _SCORELINE):
+        m = pattern.search(title or "")
+        if m:
+            a, b = _team_token(m.group(1)), _team_token(m.group(2))
+            if a and b and a != b:
+                return frozenset({a, b})
+    return None
+
+
+def dedupe_matchups(pool: list[Candidate]) -> list[Candidate]:
+    """Collapse duplicate postings of the same game, keeping the highest score."""
+    best: dict = {}
+    out: list[Candidate] = []
+    for c in pool:
+        key = matchup_key(c.title)
+        if key is None:
+            out.append(c)
+            continue
+        if key not in best or c.score > best[key].score:
+            best[key] = c
+    out.extend(best.values())
+    return out
+
+
 def is_low_info(title: str, extra_terms: list[str]) -> bool:
     """True if a title looks like entertainment fluff / low information value."""
     if _LOW_INFO.search(title) or _EPISODE_TAG.search(title):
@@ -270,17 +315,29 @@ def select(
 
     selected: dict[str, list[Candidate]] = {}
     for name, pool in by_category.items():
+        cat = cat_by_name[name]
+        if cat.dedupe_matchups:
+            pool = dedupe_matchups(pool)
         pool.sort(key=lambda c: c.score, reverse=True)
-        selected[name] = pool[: cat_by_name[name].target]
+        selected[name] = pool[: cat.target]
     return selected
 
 
 def interleave(selected: dict[str, list[Candidate]], category_order: list[str]) -> list[Candidate]:
-    """Round-robin the per-category picks so the playlist mixes topics."""
-    queues = [list(selected.get(name, [])) for name in category_order]
-    ordered: list[Candidate] = []
-    while any(queues):
-        for q in queues:
-            if q:
-                ordered.append(q.pop(0))
-    return ordered
+    """Evenly spread each category's picks across the whole playlist.
+
+    Rather than round-robin (which leaves a large category clumped at the tail
+    once the small ones empty), each item gets a fractional position in [0,1)
+    spaced evenly within its category, then all items are merged by position.
+    A 10-item category and a 3-item category both span the full list, so topics
+    stay interspersed no matter how lopsided the counts are.
+    """
+    ranked: list[tuple[float, int, Candidate]] = []
+    for ci, name in enumerate(category_order):
+        picks = selected.get(name, [])
+        n = len(picks)
+        for i, cand in enumerate(picks):
+            position = (i + 0.5) / n
+            ranked.append((position, ci, cand))
+    ranked.sort(key=lambda t: (t[0], t[1]))
+    return [cand for _, _, cand in ranked]
