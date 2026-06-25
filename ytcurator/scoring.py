@@ -47,7 +47,10 @@ _LOW_INFO = re.compile(
     r"minecraft|fortnite|gta\b|gta\s*6|pokemon|roblox|speedrun|"
     r"tier|theory\s+explained|ending\s+explained|easter\s+eggs|"
     r"caught\s+on\s+camera|bodycam|body\s+cam|911\s+call|doorbell\s+camera|"
-    r"my\s+partner\s+was\s+murdered|true\s+crime"
+    r"my\s+partner\s+was\s+murdered|true\s+crime|"
+    r"noah'?s\s+flood|creationist|young\s+earth|flat\s+earth|ancient\s+aliens|"
+    r"werewolf|bigfoot|sasquatch|loch\s+ness|"
+    r"murder\s+trial|opening\s+statements|child\s+victims|courtroom|court\s+cam|on\s+trial"
     r")\b",
     re.IGNORECASE,
 )
