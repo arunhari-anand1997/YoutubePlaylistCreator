@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from datetime import datetime
 
 from .config import CategoryConfig, Config, ScoringConfig
@@ -50,10 +51,21 @@ _LOW_INFO = re.compile(
     r"my\s+partner\s+was\s+murdered|true\s+crime|"
     r"noah'?s\s+flood|creationist|young\s+earth|flat\s+earth|ancient\s+aliens|"
     r"werewolf|bigfoot|sasquatch|loch\s+ness|"
-    r"murder\s+trial|opening\s+statements|child\s+victims|courtroom|court\s+cam|on\s+trial"
+    r"murder\s+trial|opening\s+statements|child\s+victims|courtroom|court\s+cam|on\s+trial|"
+    r"jonbenet|cold\s+case|who\s+killed|unsolved\s+(?:murder|case)|the\s+case\s+of"
     r")\b",
     re.IGNORECASE,
 )
+
+
+def _normalize(text: str) -> str:
+    """Fold typographic apostrophes and accents so the blocklist matches reliably.
+
+    e.g. "Noah's" -> "Noah's", "JonBenét" -> "JonBenet".
+    """
+    text = text.replace("’", "'").replace("‘", "'")
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
 # Season/episode dumps, e.g. "(S18, E13)" or "S2 E3".
 _EPISODE_TAG = re.compile(r"\bS\d{1,2}\s*[,.]?\s*E\d{1,2}\b", re.IGNORECASE)
 
@@ -119,9 +131,10 @@ def dedupe_matchups(pool: list[Candidate]) -> list[Candidate]:
 
 def is_low_info(title: str, extra_terms: list[str]) -> bool:
     """True if a title looks like entertainment fluff / low information value."""
-    if _LOW_INFO.search(title) or _EPISODE_TAG.search(title):
+    normalized = _normalize(title)
+    if _LOW_INFO.search(normalized) or _EPISODE_TAG.search(normalized):
         return True
-    lowered = title.lower()
+    lowered = normalized.lower()
     return any(term.lower() in lowered for term in extra_terms)
 
 
