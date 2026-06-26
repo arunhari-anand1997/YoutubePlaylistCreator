@@ -73,6 +73,7 @@ class CategoryConfig:
     skip_quality_filters: bool = False  # e.g. highlights: don't drop "GAME HIGHLIGHTS!!"
     highlights_only: bool = False  # only accept titles that look like actual game highlights
     dedupe_matchups: bool = False  # collapse the same game posted by multiple channels
+    max_age_hours: int | None = None  # only accept videos newer than this (e.g. "last night")
     uploads_per_channel: int | None = None  # override discovery default (e.g. more for sports)
     # Per-category duration overrides; fall back to the global scoring bounds when None.
     min_duration_seconds: int | None = None
@@ -106,6 +107,7 @@ def _build_category(raw: dict[str, Any]) -> CategoryConfig:
         skip_quality_filters=bool(raw.get("skip_quality_filters", False)),
         highlights_only=bool(raw.get("highlights_only", False)),
         dedupe_matchups=bool(raw.get("dedupe_matchups", False)),
+        max_age_hours=raw.get("max_age_hours"),
         uploads_per_channel=raw.get("uploads_per_channel"),
         min_duration_seconds=raw.get("min_duration_seconds"),
         max_duration_seconds=raw.get("max_duration_seconds"),

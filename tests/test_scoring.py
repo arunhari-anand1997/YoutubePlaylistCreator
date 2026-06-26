@@ -214,6 +214,22 @@ def test_highlights_only_category_drops_nongame():
     assert "g" in ids and "p" not in ids
 
 
+def test_max_age_hours_drops_stale_games():
+    cfg = make_config()
+    cat = cfg.categories[0]  # "Sports"
+    cat.max_age_hours = 30
+    cat.youtube_category_id = "17"
+    last_night = make_candidate(video_id="fresh", title="USA 2-1 Turkey | Highlights",
+                                category_id="17", from_allowlist=True,
+                                published_at=NOW - timedelta(hours=14))
+    two_days = make_candidate(video_id="stale", title="Brazil 3-0 Scotland | Highlights",
+                              category_id="17", from_allowlist=True,
+                              published_at=NOW - timedelta(hours=44))
+    selected = scoring.select([last_night, two_days], cfg, NOW)
+    ids = [c.video_id for picks in selected.values() for c in picks]
+    assert "fresh" in ids and "stale" not in ids
+
+
 def test_recency_decays():
     cfg = make_config()
     cat = cfg.categories[1]

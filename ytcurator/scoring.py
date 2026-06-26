@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .config import CategoryConfig, Config, ScoringConfig
 from .models import Candidate
@@ -318,6 +318,8 @@ def select(
                 continue
         if category.highlights_only and not looks_like_game_highlight(cand.title):
             continue  # keep only real game highlights, not pressers/features/training
+        if category.max_age_hours is not None and cand.published_at < now - timedelta(hours=category.max_age_hours):
+            continue  # too old for this category (e.g. yesterday's viral game in a "last night" bucket)
         if not passes_quality(cand, category, config.scoring):
             continue
         if not passes_duration(cand, config, category):

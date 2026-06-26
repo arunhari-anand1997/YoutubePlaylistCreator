@@ -153,37 +153,53 @@ categories:
     min_duration_seconds: 360
     max_duration_seconds: 3600
 
-  - name: "Sports Highlights"            # the day's marquee games — interspersed, not dominating
+  - name: "Soccer & World Cup Highlights"   # own bucket so a flood of MLB games can't crowd out soccer
     target: 8
     youtube_category_id: "17"
     skip_quality_filters: true
-    highlights_only: true                # only real game highlights
-    dedupe_matchups: true                # one entry per game (no league + team-channel dupes)
-    uploads_per_channel: 12
+    highlights_only: true                # only real game highlights, not pressers/training
+    dedupe_matchups: true                # one entry per game
+    max_age_hours: 30                    # only last night / today, so 2-day-old viral games don't squat slots
+    uploads_per_channel: 25              # FIFA/UEFA flood uploads with features; pull deep enough to reach match highlights
     channels:
-      - "@NFL"
-      - "@NBA"
-      - "@NHL"
-      - "@MLB"
-      - "@FIFA"
-      - "@UEFA"
+      - "@FIFA"                          # World Cup
+      - "@UEFA"                          # Champions League, Euros
       - "@Ligue1"
-      - "@Concacaf"
+      - "@Concacaf"                      # Gold Cup, Nations League
       - "@premierleague"
-      - "@cbssportsgolazo"
+      - "@cbssportsgolazo"               # US broadcaster: UCL / World Cup / CONCACAF
       - "@LaLiga"
       - "@Bundesliga"
       - "@SerieA"
       - "@MLSSoccer"
     queries:
-      - "Champions League highlights"
       - "World Cup highlights"
+      - "Champions League highlights"
       - "Premier League highlights"
-      - "NHL highlights"
-      - "NBA highlights"
-      - "NFL highlights"
       - "Ligue 1 highlights"
+      - "La Liga highlights"
       - "CONCACAF Gold Cup highlights"
-    keywords: ["highlights", "recap", "full time", "game", "match", "extended", "full game"]
+    keywords: ["world cup", "fifa", "uefa", "champions league", "premier league", "la liga", "serie a", "ligue 1", "bundesliga", "concacaf", "soccer", "highlights"]
+    min_duration_seconds: 90
+    max_duration_seconds: 1800
+
+  - name: "Other Sports Highlights"          # NFL / NBA / NHL / MLB
+    target: 5
+    youtube_category_id: "17"
+    skip_quality_filters: true
+    highlights_only: true
+    dedupe_matchups: true
+    max_age_hours: 30
+    uploads_per_channel: 15
+    channels:
+      - "@NFL"
+      - "@NBA"
+      - "@NHL"
+      - "@MLB"
+    queries:
+      - "NBA highlights"
+      - "NHL highlights"
+      - "NFL highlights"
+    keywords: ["nba", "nfl", "nhl", "mlb", "basketball", "baseball", "hockey", "highlights", "full game"]
     min_duration_seconds: 120
     max_duration_seconds: 1800
