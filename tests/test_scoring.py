@@ -202,6 +202,19 @@ def test_looks_like_game_highlight():
     assert not any(scoring.looks_like_game_highlight(t) for t in bad)
 
 
+def test_pressers_and_interviews_are_not_highlights():
+    # These carry a scoreline but are NOT game highlights.
+    not_games = [
+        "Post-Match Press Conference: Senegal's Pape Thiaw On The 5-0 Win",
+        "Post-Match Player Interviews: Senegal 5-0 Iraq",
+        "Post-Match Interviews: Norway 1-4 France",
+        "USA vs Türkiye | Match Preview & Prediction",
+    ]
+    assert not any(scoring.looks_like_game_highlight(t) for t in not_games)
+    # but the actual match highlight still passes
+    assert scoring.looks_like_game_highlight("Türkiye vs United States Extended Highlights | World Cup")
+
+
 def test_highlights_only_category_drops_nongame():
     cfg = make_config()
     cfg.categories[0].highlights_only = True

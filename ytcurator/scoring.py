@@ -80,8 +80,21 @@ _GAME_HIGHLIGHT = re.compile(
 )
 
 
+# Press conferences, interviews, reactions, previews — NOT game highlights, even
+# though their titles often carry a scoreline ("Press Conference ... on the 5-0 win").
+_NOT_GAME_HIGHLIGHT = re.compile(
+    r"press\s+conference|presser|post[-\s]?match\s+(?:interview|press|reaction|analysis)|"
+    r"player\s+interview|\binterviews?\b|takes?\s+questions|\breaction\b|"
+    r"pre[-\s]?match|\bpreview\b|prediction|build[-\s]?up|mic'?d\s+up",
+    re.IGNORECASE,
+)
+
+
 def looks_like_game_highlight(title: str) -> bool:
-    return bool(_GAME_HIGHLIGHT.search(title or ""))
+    text = title or ""
+    if _NOT_GAME_HIGHLIGHT.search(text):
+        return False
+    return bool(_GAME_HIGHLIGHT.search(text))
 
 
 # Pull the two sides of a matchup out of a highlights title, so the same game
